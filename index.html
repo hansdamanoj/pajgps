@@ -74,7 +74,7 @@
                 if (data.success && Array.isArray(data.success)) {
                     const deviceList = document.getElementById('device-list');
                     data.success.forEach(device => {
-                        if (device.last_lat_symbol && device.last_lng_symbol) {
+                        // if (device.last_lat_symbol && device.last_lng_symbol) {
                             // Check if lat and lng are valid numbers
                             const lat = parseFloat(device.last_lat_symbol) || 51.505;
                             const lng = parseFloat(device.last_lng_symbol) || -0.09;
@@ -97,11 +97,11 @@
                             L.marker([lat, lng], {
                                 icon: L.icon({
                                     iconUrl: device.customImgUrl || 'default-marker-icon.png',
-                                    iconSize: [32, 32]
+                                    iconSize: [22, 22]
                                 })
                             }).addTo(map)
                             .bindPopup(`<b>${device.name}</b><br>Last seen at ${device.last_uhrzeit}`);
-                        }
+                        // }
                     });
                 } else {
                     console.error('Invalid data format or empty success array');
@@ -132,7 +132,7 @@
                         L.marker(latlng, {
                             icon: L.icon({
                                 iconUrl: 'https://connect.paj-gps.de/api/v1/shared/_media/custom_markers---65a991d8d2cb5.png', // Replace with your directional marker icon URL
-                                iconSize: [32, 32] // Size of the icon
+                                iconSize: [22, 22] // Size of the icon
                             })
                         }).addTo(map)
                         .bindPopup(`Point ${index + 1}`);
