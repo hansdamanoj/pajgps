@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Device Route</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <style>
+        #map { height: 600px; }
+        #device-menu { margin-bottom: 10px; }
+        #device-menu ul { list-style-type: none; padding: 0; }
+        #device-menu li { margin: 5px 0; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>Device Route</h1>
+    <div id="device-menu">
+        <h2>Device List</h2>
+        <ul id="device-list"></ul>
+    </div>
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script>
+        // Your credentials
+        const credentials = {
+            email: "testkunde@paj-gps.de",
+            password: "app123#."
+        };
+
+        // Initialize the map
+        var map = L.map('map').setView([51.505, -0.09], 13); // Default center
+
+        // Add OpenStreetMap tile layer
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Fetch the token
+        function getToken() {
+            return fetch('https://connect.paj-gps.de/api/v1/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: new URLSearchParams({
+                    email: credentials.email,
+                    password: credentials.password
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success.token) {
+                    return data.success.token; // Return the token
+                } else {
+                    throw new Error('Failed to retrieve token');
+                }
+            })
+            .catch(error => {
+                console.error('Error during login:', error);
+            });
+        }
+
+        // Fetch device positions and populate the menu
+        function fetchDevicePositions(token) {
+            return fetch('https://connect.paj-gps.de/api/device', {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && Array.isArray(data.success)) {
+                    const deviceList = document.getElementById('device-list');
+                    data.success.forEach(device => {
+                        if (device.last_lat_symbol && device.last_lng_symbol) {
+                            // Check if lat and lng are valid numbers
+                            const lat = parseFloat(device.last_lat_symbol) || 51.505;
+                            const lng = parseFloat(device.last_lng_symbol) || -0.09;
+                            if (isNaN(lat) || isNaN(lng)) {
+                                // console.error(`Invalid coordinates for device ${device.name}: lat=${device.last_lat_symbol}, lng=${device.last_lng_symbol}`);
+                                return;
+                            }
+
+                            // Create list item for each device
+                            const li = document.createElement('li');
+                            li.textContent = device.name;
+                            li.onclick = () => {
+                                // Fly to device position when clicked
+                                map.flyTo([lat, lng], 13);
+                                fetchRouteData(token, device.id); // Fetch route data for the clicked device
+                            };
+                            deviceList.appendChild(li);
+
+                            // Add marker for each device
+                            L.marker([lat, lng], {
+                                icon: L.icon({
+                                    iconUrl: device.customImgUrl || 'default-marker-icon.png',
+                                    iconSize: [32, 32]
+                                })
+                            }).addTo(map)
+                            .bindPopup(`<b>${device.name}</b><br>Last seen at ${device.last_uhrzeit}`);
+                        }
+                    });
+                } else {
+                    console.error('Invalid data format or empty success array');
+                }
+            })
+            .catch(error => console.error('Error fetching device data:', error));
+        }
+
+        // Fetch route data and display it on the map
+        function fetchRouteData(token, deviceId) {
+            fetch(`https://connect.paj-gps.de/api/trackerdata/${deviceId}/last_points?lastPoints=50`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && Array.isArray(data.success)) {
+                    const latlngs = data.success.map(point => [point.lat, point.lng]);
+
+                    // Create a polyline for the route
+                    L.polyline(latlngs, { color: 'blue' }).addTo(map);
+
+                    console.log(latlngs);
+                    // Add markers for each point
+                    latlngs.forEach((latlng, index) => {
+                        L.marker(latlng, {
+                            icon: L.icon({
+                                iconUrl: 'https://connect.paj-gps.de/api/v1/shared/_media/custom_markers---65a991d8d2cb5.png', // Replace with your directional marker icon URL
+                                iconSize: [32, 32] // Size of the icon
+                            })
+                        }).addTo(map)
+                        .bindPopup(`Point ${index + 1}`);
+                    });
+
+                    // Adjust map view to fit the route
+                    map.fitBounds(latlngs);
+                } else {
+                    console.error('Invalid route data format or empty success array');
+                }
+            })
+            .catch(error => console.error('Error fetching route data:', error));
+        }
+
+        // Get the token and then fetch device positions
+        getToken().then(token => {
+            if (token) {
+                fetchDevicePositions(token); // Fetch device positions if token is available
+            }
+        });
+    </script>
+</body>
+</html>
